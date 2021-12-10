@@ -1,6 +1,6 @@
 # Pyth on Neon
 
-This repo contains a smart contract making Pyth price fees available on Neon EVM.
+This repo contains a smart contract making Pyth price feeds available on Neon EVM.
 
 ### How to use
 
