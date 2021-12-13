@@ -63,10 +63,10 @@ contract PythOracle {
 
     // Get the twap, twac and last slot an update was made
     function getTimeWeightedInfo() public view returns (int64 twap, uint64 twac, uint64 last_slot) {
-        bytes memory accData = QueryAccount.data(priceAccount, 32, 64);
+        bytes memory accData = QueryAccount.data(priceAccount, 32, 48);
         last_slot = readLittleEndianUnsigned64(accData.toUint64(0));
         twap = readLittleEndianSigned64(accData.toUint64(16));
-        twac = readLittleEndianUnsigned64(accData.toUint64(24));
+        twac = readLittleEndianUnsigned64(accData.toUint64(40));
     }
 
     // Get the last successful price update
