@@ -9,7 +9,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@truffle/hdwallet-provider": "^2.0.0",
-    "truffle": "^5.4.23"
+    "@truffle/hdwallet-provider": "^2.0.4",
+    "truffle": "^5.5.7"
   }
 }
