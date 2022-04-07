@@ -46,9 +46,4 @@ enum CorporateAction {
 1. Create a `.secret` file containing the private key or mnemonic of the account you want to use to deploy the
    contracts.
 2. Optional: Edit `truffle-config.js` to add the neon network you want to deploy to.
-3. Update `migrations/1_initial_migration.js` to your desired price feed and name.
-    1. The price feed hex address can be derived from the Solana account
-       address [here](https://gchq.github.io/CyberChef/#recipe=From_Base58('123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',true)To_Hex('None',0))
-       . Make sure to use the Pyth `Price` and not `Product` account that you can
-       find [here](https://pyth.network/markets/?cluster=devnet#).
-4. Run `truffle migrate --network neon_devnet`
+3. Run `truffle migrate --network neon_devnet`

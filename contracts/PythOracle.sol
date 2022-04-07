@@ -5,15 +5,6 @@ import "./libraries/external/BytesLib.sol";
 contract PythOracle {
     using BytesLib for bytes;
 
-    constructor (bytes32 _priceAccount, string memory _feedName){
-        priceAccount = _priceAccount;
-        feedName = _feedName;
-
-        // Fetch exponent and store it
-        bytes memory accData = QueryAccount.data(priceAccount, 20, 4);
-        exponent = readLittleEndianSigned32(accData.toUint32(0));
-    }
-
     // Little Endian helpers
 
     function readLittleEndianSigned64(uint64 input) internal pure returns (int64) {
