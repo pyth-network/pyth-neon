@@ -5,45 +5,6 @@ import "./libraries/external/BytesLib.sol";
 contract PythOracle {
     using BytesLib for bytes;
 
-    // Solana address of the Pyth price account
-    bytes32 priceAccount;
-    // Description / Name of the price feed, e.g., "BTC/USD"
-    string feedName;
-    // Exponent of the price and confidence values (10^exponent)
-    int32 public exponent;
-
-    enum PriceStatus {
-        // The price feed is not currently updating for an unknown reason. If the PriceInfo has this
-        // status, its price represents the last known good price (which may be from an arbitrarily earlier time).
-        Unknown,
-        // The price feed is currently updating. This status is the typical state of the price feed.
-        Trading,
-        // The price feed is not currently updating because trading has been halted on external venues.
-        // (Non-crypto markets only)
-        Halted,
-        // The price feed is not currently updating because external venues are using an auction to set the price.
-        // (Non-crypto markets only)
-        Auction
-    }
-
-    enum CorporateAction {
-        NoCorporateAction
-    }
-
-    struct PriceInfo {
-        // Current price. The price is represented as a fixed-point number, `price * 10^exponent`.
-        int64 price;
-        // Current confidence interval. The confidence is represented as a fixed point number `confidence * 10^exponent`
-        // The confidence interval represents the uncertainty in the price.
-        uint64 confidence;
-        // Status of the price-feed
-        PriceStatus status;
-        // Corporate action
-        CorporateAction corporateAction;
-        // Solana slot the price was last updated
-        uint64 updateSlot;
-    }
-
     constructor (bytes32 _priceAccount, string memory _feedName){
         priceAccount = _priceAccount;
         feedName = _feedName;
@@ -51,50 +12,6 @@ contract PythOracle {
         // Fetch exponent and store it
         bytes memory accData = QueryAccount.data(priceAccount, 20, 4);
         exponent = readLittleEndianSigned32(accData.toUint32(0));
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////
-    // Pyth Native Interface
-    // This interface is more powerful than the adapter interface below,
-    // as it provides access to the Pyth-specific features such as the confidence interval.
-    /////////////////////////////////////////////////////////////////////////////////////
-
-    // Get the current price, confidence and metadata from the oracle.
-    // Please see https://docs.pyth.network/consumers/best-practices for best practices on consuming the data
-    // returned by this method.
-    function getPriceInfo() public view returns (PriceInfo memory){
-        PriceInfo memory info;
-
-        // Read price account
-        bytes memory accData = QueryAccount.data(priceAccount, 208, 32);
-
-        info.price = readLittleEndianSigned64(accData.toUint64(0));
-        info.confidence = readLittleEndianUnsigned64(accData.toUint64(8));
-        info.status = PriceStatus(readLittleEndianUnsigned32(accData.toUint32(16)));
-        info.corporateAction = CorporateAction(readLittleEndianUnsigned32(accData.toUint32(20)));
-        info.updateSlot = readLittleEndianUnsigned64(accData.toUint64(24));
-
-        return info;
-    }
-
-    // Get the time-weighted average price (twap) and confidence (twac). Both of these values are
-    // the significands of fixed-point numbers, `twap * 10 ^ exponent`. Also returns the last slot
-    // when an update occurred.
-    function getTimeWeightedInfo() public view returns (int64 twap, uint64 twac, uint64 last_slot) {
-        bytes memory accData = QueryAccount.data(priceAccount, 32, 48);
-        last_slot = readLittleEndianUnsigned64(accData.toUint64(0));
-        twap = readLittleEndianSigned64(accData.toUint64(16));
-        twac = readLittleEndianUnsigned64(accData.toUint64(40));
-    }
-
-    // Get the price/confidence from the second-most-recent price update. This method returns
-    // a valid price from a time before the current price (as returned by getPriceInfo()).
-    // price and confidence are the significands of fixed-point numbers of the form `price * 10^exponent`.
-    function getPreviousUpdate() public view returns (int64 price, uint64 confidence, uint64 slot) {
-        bytes memory accData = QueryAccount.data(priceAccount, 176, 24);
-        slot = readLittleEndianUnsigned64(accData.toUint64(0));
-        price = readLittleEndianSigned64(accData.toUint64(8));
-        confidence = readLittleEndianUnsigned64(accData.toUint64(16));
     }
 
     // Little Endian helpers
