@@ -97,61 +97,6 @@ contract PythOracle {
         confidence = readLittleEndianUnsigned64(accData.toUint64(16));
     }
 
-    /////////////////////////////////////////////////////////////////////////////////////
-    // Chainlink adapter interface
-    // This interface replicates the chainlink Data Feeds API, excluding the historical API.
-    /////////////////////////////////////////////////////////////////////////////////////
-
-    function latestAnswer() external view returns (int256){
-        PriceInfo memory priceInfo = getPriceInfo();
-        return int256(priceInfo.price);
-    }
-
-    function latestRound() external view returns (uint256){
-        PriceInfo memory priceInfo = getPriceInfo();
-        return uint256(priceInfo.updateSlot);
-    }
-
-    function latestTimestamp() external view returns (uint256){
-        // TODO this is not correct
-        return block.timestamp;
-    }
-
-    function latestRoundData()
-    external
-    view
-    returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ){
-        PriceInfo memory priceInfo = getPriceInfo();
-
-        return (
-        uint80(priceInfo.updateSlot),
-        int256(priceInfo.price),
-        uint256(block.timestamp),
-        uint256(block.timestamp),
-        // TODO not correct
-        uint80(block.timestamp)
-        );
-    }
-
-    function decimals() external view returns (uint8){
-        require(exponent <= 0 && exponent > - 255, "invalid exponent for interface compatibility");
-        return uint8(uint32(- exponent));
-    }
-
-    function description() external view returns (string memory){
-        return feedName;
-    }
-
-    function version() external view returns (uint256){
-        return 4;
-    }
-
     // Little Endian helpers
 
     function readLittleEndianSigned64(uint64 input) internal pure returns (int64) {
