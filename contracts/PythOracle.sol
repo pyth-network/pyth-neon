@@ -5,8 +5,64 @@ import "./libraries/external/QueryAccount.sol";
 import "solidity-bytes-utils/contracts/BytesLib.sol";
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
+/// @title Consume prices from the Pyth Network (https://pyth.network/).
+/// @dev Please refer to the guidance at https://docs.pyth.network/consumers/best-practices for how to consume prices safely.
+/// @author Pyth Data Association
 contract PythOracle {
     using BytesLib for bytes;
+
+    /// @notice Returns the current price and confidence interval.
+    /// @dev Reverts if the current price is not available.
+    /// @param id The Pyth Price Feed ID of which to fetch the current price and confidence interval.
+    /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
+    function getCurrentPrice(bytes32 id) external returns (PythStructs.Price memory price) {
+        PythStructs.PriceFeed memory priceFeed = queryPriceFeed(id);
+
+        require(priceFeed.status == PythStructs.PriceStatus.TRADING, "current price unavailable");
+
+        price.price = priceFeed.price;
+        price.conf = priceFeed.conf;
+        price.expo = priceFeed.expo;
+        return price;
+    }
+
+    /// @notice Returns the exponential moving average price and confidence interval.
+    /// @dev Reverts if the current exponential moving average price is not available.
+    /// @param id The Pyth Price Feed ID of which to fetch the current price and confidence interval.
+    /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
+    function getEmaPrice(bytes32 id) external returns (PythStructs.Price memory price) {
+        PythStructs.PriceFeed memory priceFeed = queryPriceFeed(id);
+
+        price.price = priceFeed.emaPrice;
+        price.conf = priceFeed.emaConf;
+        price.expo = priceFeed.expo;
+        return price;
+    }
+
+    /// @notice Returns the most recent previous price with a status of Trading, with the time when this was published.
+    /// @dev This may be a price from arbitrarily far in the past: it is important that you check the publish time before using the price.
+    /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
+    /// @return publishTime - the UNIX timestamp of when this price was computed.
+    function getPrevPriceUnsafe(bytes32 id) external returns (PythStructs.Price memory price, uint64 publishTime) {
+        PythStructs.PriceFeed memory priceFeed = queryPriceFeed(id);
+
+        price.price = priceFeed.prevPrice;
+        price.conf = priceFeed.prevConf;
+        price.expo = priceFeed.expo;
+        return (price, priceFeed.prevPublishTime);
+    }
+
+    function queryPriceFeed(bytes32 id) public returns (PythStructs.PriceFeed memory) {
+        uint64 priceAccountDataLen = 244;
+        uint256 addr = uint256(id);
+
+        require(QueryAccount.cache(addr, 0, priceAccountDataLen), "failed to update cache");
+
+        (bool success, bytes memory accData) = QueryAccount.data(addr, 0, priceAccountDataLen);
+        require(success, "failed to query account data");
+
+        return parseSolanaPriceAccountData(id, accData);
+    }
 
     function parseSolanaPriceAccountData(bytes32 id, bytes memory data) public pure returns (PythStructs.PriceFeed memory priceFeed) {
         priceFeed.id = id;
