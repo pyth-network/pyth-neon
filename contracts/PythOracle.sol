@@ -1,9 +1,74 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
 import "./libraries/external/QueryAccount.sol";
 import "solidity-bytes-utils/contracts/BytesLib.sol";
+import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
 contract PythOracle {
     using BytesLib for bytes;
+
+    function parseSolanaPriceAccountData(bytes32 id, bytes memory data) public pure returns (PythStructs.PriceFeed memory priceFeed) {
+        priceFeed.id = id;
+
+        uint256 offset = 0;
+
+        // Skip: magic (4) + ver (4) + atype (4) + size (4) + ptype (4)
+        offset += 20;
+
+        priceFeed.expo = readLittleEndianSigned32(data.toUint32(offset));
+        offset += 4;
+
+        priceFeed.maxNumPublishers = readLittleEndianUnsigned32(data.toUint32(offset));
+        offset += 4;
+
+        priceFeed.numPublishers = readLittleEndianUnsigned32(data.toUint32(offset));
+        offset += 4;
+
+        // Skip: last_slot (8) + valid_slot (8)
+        offset += 16;
+
+        priceFeed.emaPrice = readLittleEndianSigned64(data.toUint64(offset));
+        offset += 8;
+
+        // Skip: twap.numer_ (8) + twap.denom_ (8)
+        offset += 16;
+
+        priceFeed.emaConf = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        // Skip: twac.numer_ (8) + twac.denom_ (8)
+        offset += 16;
+
+        priceFeed.publishTime = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        // Skip: min_pub (1) + drv2_ (1) + drv3_ (2) + drv4_ (4)
+        offset += 8;
+
+        priceFeed.productId = bytes32(data.slice(offset, 32));
+        offset += 32;
+
+        // Skip: next_ (32) + prev_slot_ (8)
+        offset += 40;
+
+        priceFeed.prevPrice = readLittleEndianSigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.prevConf = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.prevPublishTime = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.price = readLittleEndianSigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.conf = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.status = PythStructs.PriceStatus(readLittleEndianUnsigned32(data.toUint32(offset)));
+    }
 
     // Little Endian helpers
 
