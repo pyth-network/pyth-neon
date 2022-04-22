@@ -2,41 +2,28 @@
 
 This repo contains a smart contract making Pyth price feeds available on Neon EVM.
 
+It is **strongly recommended** to follow the [consumer best practices](https://docs.pyth.network/consumers/best-practices) when consuming Pyth data.
+
 ### How to use
 
-The Pyth wrapper supports both the Chainlink Aggregator Interface as well as the pyth-optimized native interface:
+To consume prices, you need to look up the price ID of the price feed for the symbol you're interested in. This corresponds to the account key of the Solana price account.
 
 ```solidity
-function getPriceInfo() public view returns (PriceInfo memory);
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.0;
 
-// Exponent of the price and confidence values (10^exponent)
-int32 public exponent;
+import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
-// Exponent converted to the number of decimals for easier consumption
-function decimals() external view returns (uint8);
+contract ExampleContract {
 
-struct PriceInfo {
-    // Current price
-    int64 price;
-    // Current confidence interval
-    uint64 confidence;
-    // Status of the price-feed
-    PriceStatus status;
-    // Corporate action
-    CorporateAction corporateAction;
-    // Solana slot the price was last updated
-    uint64 updateSlot;
-}
+    function getBTCUSDPrice() public returns (PythStructs.Price memory) {
 
-enum PriceStatus {
-    Unknown,
-    Trading,
-    Halted,
-    Auction
-}
+        // The Solana Devnet price account key of BTC/USD
+        bytes32 priceID = 0xf9c0172ba10dfa4d19088d94f5bf61d3b54d5bd7483a322a982e1373ee8ea31b;
 
-enum CorporateAction {
-    NoCorporateAction
+        return pyth.getCurrentPrice(priceID);
+    }
+    
 }
 ```
 
