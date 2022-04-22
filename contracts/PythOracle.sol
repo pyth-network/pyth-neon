@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import "./libraries/external/QueryAccount.sol";
-import "./libraries/external/BytesLib.sol";
+import "solidity-bytes-utils/contracts/BytesLib.sol";
 
 contract PythOracle {
     using BytesLib for bytes;

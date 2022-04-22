@@ -10,6 +10,7 @@
   "license": "MIT",
   "dependencies": {
     "@truffle/hdwallet-provider": "^2.0.4",
+    "solidity-bytes-utils": "^0.8.0",
     "truffle": "^5.5.7"
   }
 }
