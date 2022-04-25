@@ -1,8 +1,8 @@
 const QueryAccount = artifacts.require("QueryAccount");
-const PythOracle = artifacts.require("PythOracle");
+const Pyth = artifacts.require("Pyth");
 
 module.exports = function (deployer) {
     deployer.deploy(QueryAccount);
-    deployer.link(QueryAccount, PythOracle);
-    deployer.deploy(PythOracle);
+    deployer.link(QueryAccount, Pyth);
+    deployer.deploy(Pyth);
 };
