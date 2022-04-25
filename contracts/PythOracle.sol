@@ -8,7 +8,7 @@ import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 /// @title Consume prices from the Pyth Network (https://pyth.network/).
 /// @dev Please refer to the guidance at https://docs.pyth.network/consumers/best-practices for how to consume prices safely.
 /// @author Pyth Data Association
-contract PythOracle {
+contract Pyth {
     using BytesLib for bytes;
 
     /// @notice Returns the current price and confidence interval.
