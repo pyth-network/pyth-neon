@@ -1,155 +1,129 @@
 // SPDX-License-Identifier: MIT
-import "./libraries/external/QueryAccount.sol";
-import "./libraries/external/BytesLib.sol";
+pragma solidity ^0.8.0;
 
+import "./libraries/external/QueryAccount.sol";
+import "solidity-bytes-utils/contracts/BytesLib.sol";
+import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
+
+/// @title Consume prices from the Pyth Network (https://pyth.network/).
+/// @dev Please refer to the guidance at https://docs.pyth.network/consumers/best-practices for how to consume prices safely.
+/// @author Pyth Data Association
 contract PythOracle {
     using BytesLib for bytes;
 
-    // Solana address of the Pyth price account
-    bytes32 priceAccount;
-    // Description / Name of the price feed, e.g., "BTC/USD"
-    string feedName;
-    // Exponent of the price and confidence values (10^exponent)
-    int32 public exponent;
+    /// @notice Returns the current price and confidence interval.
+    /// @dev Reverts if the current price is not available.
+    /// @param id The Pyth Price Feed ID of which to fetch the current price and confidence interval.
+    /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
+    function getCurrentPrice(bytes32 id) external returns (PythStructs.Price memory price) {
+        PythStructs.PriceFeed memory priceFeed = queryPriceFeed(id);
 
-    enum PriceStatus {
-        // The price feed is not currently updating for an unknown reason. If the PriceInfo has this
-        // status, its price represents the last known good price (which may be from an arbitrarily earlier time).
-        Unknown,
-        // The price feed is currently updating. This status is the typical state of the price feed.
-        Trading,
-        // The price feed is not currently updating because trading has been halted on external venues.
-        // (Non-crypto markets only)
-        Halted,
-        // The price feed is not currently updating because external venues are using an auction to set the price.
-        // (Non-crypto markets only)
-        Auction
+        require(priceFeed.status == PythStructs.PriceStatus.TRADING, "current price unavailable");
+
+        price.price = priceFeed.price;
+        price.conf = priceFeed.conf;
+        price.expo = priceFeed.expo;
+        return price;
     }
 
-    enum CorporateAction {
-        NoCorporateAction
+    /// @notice Returns the exponential moving average price and confidence interval.
+    /// @dev Reverts if the current exponential moving average price is not available.
+    /// @param id The Pyth Price Feed ID of which to fetch the current price and confidence interval.
+    /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
+    function getEmaPrice(bytes32 id) external returns (PythStructs.Price memory price) {
+        PythStructs.PriceFeed memory priceFeed = queryPriceFeed(id);
+
+        price.price = priceFeed.emaPrice;
+        price.conf = priceFeed.emaConf;
+        price.expo = priceFeed.expo;
+        return price;
     }
 
-    struct PriceInfo {
-        // Current price. The price is represented as a fixed-point number, `price * 10^exponent`.
-        int64 price;
-        // Current confidence interval. The confidence is represented as a fixed point number `confidence * 10^exponent`
-        // The confidence interval represents the uncertainty in the price.
-        uint64 confidence;
-        // Status of the price-feed
-        PriceStatus status;
-        // Corporate action
-        CorporateAction corporateAction;
-        // Solana slot the price was last updated
-        uint64 updateSlot;
+    /// @notice Returns the most recent previous price with a status of Trading, with the time when this was published.
+    /// @dev This may be a price from arbitrarily far in the past: it is important that you check the publish time before using the price.
+    /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
+    /// @return publishTime - the UNIX timestamp of when this price was computed.
+    function getPrevPriceUnsafe(bytes32 id) external returns (PythStructs.Price memory price, uint64 publishTime) {
+        PythStructs.PriceFeed memory priceFeed = queryPriceFeed(id);
+
+        price.price = priceFeed.prevPrice;
+        price.conf = priceFeed.prevConf;
+        price.expo = priceFeed.expo;
+        return (price, priceFeed.prevPublishTime);
     }
 
-    constructor (bytes32 _priceAccount, string memory _feedName){
-        priceAccount = _priceAccount;
-        feedName = _feedName;
+    function queryPriceFeed(bytes32 id) public returns (PythStructs.PriceFeed memory) {
+        uint64 priceAccountDataLen = 244;
+        uint256 addr = uint256(id);
 
-        // Fetch exponent and store it
-        bytes memory accData = QueryAccount.data(priceAccount, 20, 4);
-        exponent = readLittleEndianSigned32(accData.toUint32(0));
+        require(QueryAccount.cache(addr, 0, priceAccountDataLen), "failed to update cache");
+
+        (bool success, bytes memory accData) = QueryAccount.data(addr, 0, priceAccountDataLen);
+        require(success, "failed to query account data");
+
+        return parseSolanaPriceAccountData(id, accData);
     }
 
-    /////////////////////////////////////////////////////////////////////////////////////
-    // Pyth Native Interface
-    // This interface is more powerful than the adapter interface below,
-    // as it provides access to the Pyth-specific features such as the confidence interval.
-    /////////////////////////////////////////////////////////////////////////////////////
+    function parseSolanaPriceAccountData(bytes32 id, bytes memory data) public pure returns (PythStructs.PriceFeed memory priceFeed) {
+        priceFeed.id = id;
 
-    // Get the current price, confidence and metadata from the oracle.
-    // Please see https://docs.pyth.network/consumers/best-practices for best practices on consuming the data
-    // returned by this method.
-    function getPriceInfo() public view returns (PriceInfo memory){
-        PriceInfo memory info;
+        uint256 offset = 0;
 
-        // Read price account
-        bytes memory accData = QueryAccount.data(priceAccount, 208, 32);
+        // Skip: magic (4) + ver (4) + atype (4) + size (4) + ptype (4)
+        offset += 20;
 
-        info.price = readLittleEndianSigned64(accData.toUint64(0));
-        info.confidence = readLittleEndianUnsigned64(accData.toUint64(8));
-        info.status = PriceStatus(readLittleEndianUnsigned32(accData.toUint32(16)));
-        info.corporateAction = CorporateAction(readLittleEndianUnsigned32(accData.toUint32(20)));
-        info.updateSlot = readLittleEndianUnsigned64(accData.toUint64(24));
+        priceFeed.expo = readLittleEndianSigned32(data.toUint32(offset));
+        offset += 4;
 
-        return info;
-    }
+        priceFeed.maxNumPublishers = readLittleEndianUnsigned32(data.toUint32(offset));
+        offset += 4;
 
-    // Get the time-weighted average price (twap) and confidence (twac). Both of these values are
-    // the significands of fixed-point numbers, `twap * 10 ^ exponent`. Also returns the last slot
-    // when an update occurred.
-    function getTimeWeightedInfo() public view returns (int64 twap, uint64 twac, uint64 last_slot) {
-        bytes memory accData = QueryAccount.data(priceAccount, 32, 48);
-        last_slot = readLittleEndianUnsigned64(accData.toUint64(0));
-        twap = readLittleEndianSigned64(accData.toUint64(16));
-        twac = readLittleEndianUnsigned64(accData.toUint64(40));
-    }
+        priceFeed.numPublishers = readLittleEndianUnsigned32(data.toUint32(offset));
+        offset += 4;
 
-    // Get the price/confidence from the second-most-recent price update. This method returns
-    // a valid price from a time before the current price (as returned by getPriceInfo()).
-    // price and confidence are the significands of fixed-point numbers of the form `price * 10^exponent`.
-    function getPreviousUpdate() public view returns (int64 price, uint64 confidence, uint64 slot) {
-        bytes memory accData = QueryAccount.data(priceAccount, 176, 24);
-        slot = readLittleEndianUnsigned64(accData.toUint64(0));
-        price = readLittleEndianSigned64(accData.toUint64(8));
-        confidence = readLittleEndianUnsigned64(accData.toUint64(16));
-    }
+        // Skip: last_slot (8) + valid_slot (8)
+        offset += 16;
 
-    /////////////////////////////////////////////////////////////////////////////////////
-    // Chainlink adapter interface
-    // This interface replicates the chainlink Data Feeds API, excluding the historical API.
-    /////////////////////////////////////////////////////////////////////////////////////
+        priceFeed.emaPrice = readLittleEndianSigned64(data.toUint64(offset));
+        offset += 8;
 
-    function latestAnswer() external view returns (int256){
-        PriceInfo memory priceInfo = getPriceInfo();
-        return int256(priceInfo.price);
-    }
+        // Skip: twap.numer_ (8) + twap.denom_ (8)
+        offset += 16;
 
-    function latestRound() external view returns (uint256){
-        PriceInfo memory priceInfo = getPriceInfo();
-        return uint256(priceInfo.updateSlot);
-    }
+        priceFeed.emaConf = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
 
-    function latestTimestamp() external view returns (uint256){
-        // TODO this is not correct
-        return block.timestamp;
-    }
+        // Skip: twac.numer_ (8) + twac.denom_ (8)
+        offset += 16;
 
-    function latestRoundData()
-    external
-    view
-    returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ){
-        PriceInfo memory priceInfo = getPriceInfo();
+        priceFeed.publishTime = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
 
-        return (
-        uint80(priceInfo.updateSlot),
-        int256(priceInfo.price),
-        uint256(block.timestamp),
-        uint256(block.timestamp),
-        // TODO not correct
-        uint80(block.timestamp)
-        );
-    }
+        // Skip: min_pub (1) + drv2_ (1) + drv3_ (2) + drv4_ (4)
+        offset += 8;
 
-    function decimals() external view returns (uint8){
-        require(exponent <= 0 && exponent > - 255, "invalid exponent for interface compatibility");
-        return uint8(uint32(- exponent));
-    }
+        priceFeed.productId = bytes32(data.slice(offset, 32));
+        offset += 32;
 
-    function description() external view returns (string memory){
-        return feedName;
-    }
+        // Skip: next_ (32) + prev_slot_ (8)
+        offset += 40;
 
-    function version() external view returns (uint256){
-        return 4;
+        priceFeed.prevPrice = readLittleEndianSigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.prevConf = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.prevPublishTime = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.price = readLittleEndianSigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.conf = readLittleEndianUnsigned64(data.toUint64(offset));
+        offset += 8;
+
+        priceFeed.status = PythStructs.PriceStatus(readLittleEndianUnsigned32(data.toUint32(offset)));
     }
 
     // Little Endian helpers
