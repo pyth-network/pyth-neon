@@ -6,10 +6,7 @@ It is **strongly recommended** to follow the [consumer best practices](https://d
 
 ### How to use
 
-To consume prices, you need to look up the price feed ID for the symbol you're interested in. This can be derived from the account key of the Solana price account. As an example, to find the price feed ID for BTC/USD in Devnet:
-- Go to the [pyth.network](https://pyth.network/markets) page for the product: https://pyth.network/markets/?cluster=devnet#Crypto.BTC/USD. Ensure that the correct network is selected.
-- Find the "Price" box on the lower right section of the page, under the "Price Components" section. The base58-encoded price account key will be listed immediately under the "Price" heading. For BTC/USD in Devnet this is `HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J`.
-- base58-decode this value and take the hex representation: `0xf9c0172ba10dfa4d19088d94f5bf61d3b54d5bd7483a322a982e1373ee8ea31b`. This is the price feed ID.
+To consume prices, you need to look up the price feed ID for the symbol you're interested in. The NEON Devnet price feed IDs are listed [here](https://pyth.network/developers/price-feeds/#neon-evm-devnet).
 
 ```solidity
 // SPDX-License-Identifier: Apache-2.0
@@ -21,7 +18,7 @@ contract ExampleContract {
 
     function getBTCUSDPrice() public returns (PythStructs.Price memory) {
 
-        // The Solana Devnet price account key of BTC/USD
+        // The NEON Devnet price feed ID of BTC/USD
         bytes32 priceID = 0xf9c0172ba10dfa4d19088d94f5bf61d3b54d5bd7483a322a982e1373ee8ea31b;
 
         return pyth.getCurrentPrice(priceID);
