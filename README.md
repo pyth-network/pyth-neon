@@ -6,7 +6,8 @@ It is **strongly recommended** to follow the [consumer best practices](https://d
 
 ### How to use
 
-To consume prices, you need to look up the price feed ID for the symbol you're interested in. The NEON Devnet price feed IDs are listed [here](https://pyth.network/developers/price-feeds/#neon-evm-devnet).
+To consume prices, you need to look up the price feed ID for the symbol you're interested in.
+The Pyth Network website lists the NEON price feed IDs for [devnet](https://pyth.network/developers/price-feeds/#neon-evm-devnet) and [mainnet](https://pyth.network/developers/price-feeds/#neon-evm-mainnet).
 
 ```solidity
 // SPDX-License-Identifier: Apache-2.0
